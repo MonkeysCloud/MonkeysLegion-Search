@@ -1,0 +1,76 @@
+{
+    "name": "monkeyscloud/monkeyslegion-search",
+    "description": "Multi-engine search adapter (Meilisearch, Typesense, OpenSearch, Elasticsearch, Solr) with attribute-driven index syncing from Entity and hybrid BM25+vector search support",
+    "type": "library",
+    "license": "MIT",
+    "keywords": [
+        "search",
+        "meilisearch",
+        "typesense",
+        "opensearch",
+        "elasticsearch",
+        "solr",
+        "full-text",
+        "hybrid-search",
+        "vector-search",
+        "index-sync"
+    ],
+    "authors": [
+        {
+            "name": "MonkeysCloud",
+            "email": "jorge@monkeys.cloud"
+        }
+    ],
+    "require": {
+        "php": "^8.4",
+        "ext-curl": "*",
+        "ext-json": "*",
+        "monkeyscloud/monkeyslegion-core": "^2.0",
+        "monkeyscloud/monkeyslegion-entity": "^2.0",
+        "monkeyscloud/monkeyslegion-di": "^2.0",
+        "monkeyscloud/monkeyslegion-events": "^2.0",
+        "psr/log": "^3.0"
+    },
+    "require-dev": {
+        "phpstan/phpstan": "^2.1",
+        "phpunit/phpunit": "^12.2",
+        "squizlabs/php_codesniffer": "^4.0"
+    },
+    "suggest": {
+        "monkeyscloud/monkeyslegion-cli": "Required for search:sync, search:reindex CLI commands",
+        "monkeyscloud/monkeyslegion-vector": "For hybrid BM25+vector search support"
+    },
+    "autoload": {
+        "psr-4": {
+            "MonkeysLegion\\Search\\": "src/"
+        }
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "MonkeysLegion\\Search\\Tests\\": "tests/"
+        }
+    },
+    "scripts": {
+        "test": "phpunit",
+        "test:unit": "phpunit --testsuite=Unit",
+        "test:integration": "phpunit --testsuite=Integration",
+        "test:coverage": "phpunit --coverage-html coverage",
+        "phpstan": "phpstan analyse src tests --level=9 --memory-limit=1G",
+        "cs": "phpcs --standard=PSR12 src tests",
+        "cs-fix": "phpcbf --standard=PSR12 src tests",
+        "check": [
+            "@cs",
+            "@phpstan",
+            "@test"
+        ]
+    },
+    "extra": {
+        "monkeyslegion": {
+            "providers": [
+                "MonkeysLegion\\Search\\Providers\\SearchProvider"
+            ]
+        }
+    },
+    "minimum-stability": "dev",
+    "prefer-stable": true
+}
