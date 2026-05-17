@@ -3,34 +3,40 @@ declare(strict_types=1);
 
 namespace MonkeysLegion\Search\Support;
 
-use MonkeysLegion\Search\Exceptions\ConnectionException;
+use MonkeysLegion\HttpClient\HttpClient as BaseClient;
+use MonkeysLegion\HttpClient\DTO\ClientConfig;
+use MonkeysLegion\HttpClient\DTO\HttpResponse as BaseResponse;
 
 /**
  * MonkeysLegion Framework — Search Package
  *
- * Lightweight cURL-based HTTP client for search engine APIs.
- *
- * Uses ext-curl directly for maximum performance and zero
- * external dependencies. Supports JSON request/response,
- * configurable timeouts, and authentication headers.
+ * Lightweight HTTP client for search engine APIs.
+ * Now delegates to monkeyslegion-http-client for pooled connections,
+ * keep-alive, and unified error handling.
  *
  * @copyright 2026 MonkeysCloud Team
  * @license   MIT
  */
 final class HttpClient
 {
-    private const int DEFAULT_TIMEOUT = 30;
-    private const int DEFAULT_CONNECT_TIMEOUT = 5;
+    private readonly BaseClient $client;
 
     /**
      * @param array<string, string> $defaultHeaders Headers sent with every request.
      */
     public function __construct(
-        private readonly string $baseUrl,
-        private readonly array $defaultHeaders = [],
-        private readonly int $timeout = self::DEFAULT_TIMEOUT,
-        private readonly int $connectTimeout = self::DEFAULT_CONNECT_TIMEOUT,
-    ) {}
+        string $baseUrl,
+        array $defaultHeaders = [],
+        int $timeout = 30,
+        int $connectTimeout = 5,
+    ) {
+        $this->client = new BaseClient(new ClientConfig(
+            baseUrl: $baseUrl,
+            timeout: $timeout,
+            connectTimeout: $connectTimeout,
+            defaultHeaders: $defaultHeaders,
+        ));
+    }
 
     /**
      * Send a GET request.
@@ -46,8 +52,16 @@ final class HttpClient
         array $query = [],
         array $headers = [],
     ): HttpResponse {
-        $url = $this->buildUrl($path, $query);
-        return $this->request('GET', $url, null, $headers);
+        $queryStrings = [];
+        foreach ($query as $k => $v) {
+            $queryStrings[$k] = (string) $v;
+        }
+        $request = $this->client->newRequest();
+        if ($headers !== []) {
+            $request = $request->withHeaders($headers);
+        }
+        $response = $request->get($path, $queryStrings);
+        return $this->wrap($response);
     }
 
     /**
@@ -64,8 +78,19 @@ final class HttpClient
         ?array $body = null,
         array $headers = [],
     ): HttpResponse {
-        $url = $this->buildUrl($path);
-        return $this->request('POST', $url, $body, $headers);
+        $request = $this->client->newRequest();
+        if ($headers !== []) {
+            $request = $request->withHeaders($headers);
+        }
+        if ($body !== null) {
+            $response = $request->withJson($body)->send(
+                \MonkeysLegion\HttpClient\Enum\HttpMethod::POST,
+                $path,
+            );
+        } else {
+            $response = $request->post($path);
+        }
+        return $this->wrap($response);
     }
 
     /**
@@ -82,8 +107,19 @@ final class HttpClient
         ?array $body = null,
         array $headers = [],
     ): HttpResponse {
-        $url = $this->buildUrl($path);
-        return $this->request('PUT', $url, $body, $headers);
+        $request = $this->client->newRequest();
+        if ($headers !== []) {
+            $request = $request->withHeaders($headers);
+        }
+        if ($body !== null) {
+            $response = $request->put($path, $body);
+        } else {
+            $response = $request->send(
+                \MonkeysLegion\HttpClient\Enum\HttpMethod::PUT,
+                $path,
+            );
+        }
+        return $this->wrap($response);
     }
 
     /**
@@ -100,8 +136,19 @@ final class HttpClient
         ?array $body = null,
         array $headers = [],
     ): HttpResponse {
-        $url = $this->buildUrl($path);
-        return $this->request('PATCH', $url, $body, $headers);
+        $request = $this->client->newRequest();
+        if ($headers !== []) {
+            $request = $request->withHeaders($headers);
+        }
+        if ($body !== null) {
+            $response = $request->patch($path, $body);
+        } else {
+            $response = $request->send(
+                \MonkeysLegion\HttpClient\Enum\HttpMethod::PATCH,
+                $path,
+            );
+        }
+        return $this->wrap($response);
     }
 
     /**
@@ -118,93 +165,22 @@ final class HttpClient
         ?array $body = null,
         array $headers = [],
     ): HttpResponse {
-        $url = $this->buildUrl($path);
-        return $this->request('DELETE', $url, $body, $headers);
-    }
-
-    // ── Internal ───────────────────────────────────────────────
-
-    /**
-     * Execute a cURL request.
-     *
-     * @param string                    $method  HTTP method.
-     * @param string                    $url     Full URL.
-     * @param array<string, mixed>|null $body    JSON-encodable body.
-     * @param array<string, string>     $headers Extra headers.
-     *
-     * @return HttpResponse
-     *
-     * @throws ConnectionException On cURL failure.
-     */
-    private function request(
-        string $method,
-        string $url,
-        ?array $body,
-        array $headers,
-    ): HttpResponse {
-        $ch = curl_init();
-
-        $allHeaders = array_merge($this->defaultHeaders, $headers);
-        $allHeaders['Content-Type'] ??= 'application/json';
-        $allHeaders['Accept'] ??= 'application/json';
-
-        $headerList = [];
-        foreach ($allHeaders as $name => $value) {
-            $headerList[] = "{$name}: {$value}";
+        $request = $this->client->newRequest();
+        if ($headers !== []) {
+            $request = $request->withHeaders($headers);
         }
-
-        curl_setopt_array($ch, [
-            CURLOPT_URL            => $url,
-            CURLOPT_CUSTOMREQUEST  => $method,
-            CURLOPT_RETURNTRANSFER => true,
-            CURLOPT_HTTPHEADER     => $headerList,
-            CURLOPT_TIMEOUT        => $this->timeout,
-            CURLOPT_CONNECTTIMEOUT => $this->connectTimeout,
-            CURLOPT_FOLLOWLOCATION => true,
-            CURLOPT_MAXREDIRS      => 3,
-        ]);
-
-        if ($body !== null) {
-            $json = json_encode($body, JSON_THROW_ON_ERROR);
-            curl_setopt($ch, CURLOPT_POSTFIELDS, $json);
-        }
-
-        $responseBody = curl_exec($ch);
-
-        if ($responseBody === false) {
-            $error = curl_error($ch);
-            $errno = curl_errno($ch);
-            curl_close($ch);
-            throw new ConnectionException(
-                "cURL request failed [{$errno}]: {$error} — {$method} {$url}",
-                $errno,
-            );
-        }
-
-        $statusCode = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
-        curl_close($ch);
-
-        /** @var string $responseBody */
-        return new HttpResponse(
-            statusCode: $statusCode,
-            body: $responseBody,
-        );
+        $response = $request->delete($path);
+        return $this->wrap($response);
     }
 
     /**
-     * Build a full URL from base, path, and query params.
-     *
-     * @param string               $path  URL path.
-     * @param array<string, mixed> $query Query parameters.
+     * Wrap the base HttpResponse into our local HttpResponse.
      */
-    private function buildUrl(string $path, array $query = []): string
+    private function wrap(BaseResponse $response): HttpResponse
     {
-        $url = rtrim($this->baseUrl, '/') . '/' . ltrim($path, '/');
-
-        if ($query !== []) {
-            $url .= '?' . http_build_query($query);
-        }
-
-        return $url;
+        return new HttpResponse(
+            statusCode: $response->statusCode,
+            body: $response->body,
+        );
     }
 }
