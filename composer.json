@@ -22,14 +22,14 @@
         }
     ],
     "require": {
-        "php": "^8.4",
         "ext-curl": "*",
         "ext-json": "*",
-        "monkeyscloud/monkeyslegion-core": "^2.0",
-        "monkeyscloud/monkeyslegion-entity": "^2.0",
+        "monkeyscloud/monkeyslegion-core": "^2.1",
         "monkeyscloud/monkeyslegion-di": "^2.0",
+        "monkeyscloud/monkeyslegion-entity": "^2.1",
         "monkeyscloud/monkeyslegion-events": "^2.0",
         "monkeyscloud/monkeyslegion-http-client": "^1.0",
+        "php": "^8.4",
         "psr/log": "^3.0"
     },
     "require-dev": {
@@ -72,6 +72,5 @@
             ]
         }
     },
-    "minimum-stability": "dev",
     "prefer-stable": true
 }
